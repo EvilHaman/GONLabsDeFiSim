@@ -4,3 +4,4 @@ matplotlib
 dill
 cvxpy
 PyQt5
+ipython

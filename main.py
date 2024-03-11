@@ -5,17 +5,15 @@ from sim_func import run_simulation
 from utilis.utils import setupLogger
 from analytics_and_plots.analytics_aggregate import compute_pnl_attributions, plot_pnl, plot_pnl_score_card, \
     plot_pnl_total_per_pm_group, compute_stats_per_pm_group, plot_gonomics_distribution_plan, \
-    principle_stats_on_pm_type, plot_principle_stats, plot_gon_related_stats
-from utilis.constants import GON_PARTICIPANT_ACTION_TYPE, GON_PM_TYPE
-from gon_participant import generate_random_gon_investor, GonParticipant, GON_PARTICIPANT_TYPE, \
-    generate_random_gon_investor_deposit_in_strategy
+    plot_principle_stats, plot_gon_related_stats
+from utilis.constants import GON_PM_TYPE
+from gon_participant import GON_PARTICIPANT_TYPE
 from gon_pm import GonPortfolioManagerSimple, GonPortfolioManagerSimpleWithProfitTakingOnApy, \
     GonPortfolioManagerSimpleConservative, GonPortfolioManagerBuyAndHold, GonPortfolioManagerLiliquidityProvider, \
     GonPortfolioManagerSophisticated, GonPortfolioManagerDoNothing
-from gonomics import GonDistributionScheduler, GonomicsEngine
-from pnl_snapshot import PnlSnapshot
+from gonomics import GonomicsEngine
 from strategy_contract import GonStrategyContract
-from utilis.utils import monthly_to_daily_returns, create_amm_pool, compute_apy_stats
+from utilis.utils import create_amm_pool
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
@@ -102,11 +100,7 @@ for pm_type, pct in gon_investors_pct_map.items():
 #gon_investors_retail_strategy = [ GonPortfolioManagerSimple(name=None, type=GON_PARTICIPANT_TYPE.COMMUNITY).set_local_params(strat_buy_yield_pct=np.random.randint(20, 70)) for i in range(number_of_investors)]
 
 # pick a strategy performance to be used in the simulation:
-rtn_daily_all = pd.read_csv('C:\\Users\\44787\\Documents\\Martial-Eagle\\backtests\\rtn_daily_all.csv')\
-.assign(datetime=lambda x: pd.to_datetime(x['datetime'], format='%d/%m/%Y'))\
-.set_index('datetime')
-rtn_daily = rtn_daily_all['Crypto-Systematic-Fundamental']#'Crypto-Systematic-Fundamental']
-#rtn_daily['2022-01-01':'2022-02-17'] = np.nan
+rtn_daily = pd.read_pickle('resources\\rtn_daily-Crypto-Systematic-Fundamental.pkl')
 
 # setup strategy contract and deposit 100% of the strategy capital:
 reward_fee_on_pnl_bps = 200
@@ -119,11 +113,11 @@ gonomics_engine = GonomicsEngine(gon_total_supply=GON_total_supply, gas_fee_usdt
                            datetime_first=pd.to_datetime(rtn_daily.index[0]))
 
 
-############### SIM RUN ################
+######################################### SIM RUN ##################################################################
 res = run_simulation(rtn_daily, strat_contract, gonomics_engine, amm_pool, gon_investors_retail_strategy,
                    gon_lp_provider, gon_pre_seeders, gon_founders, sim_start_date='2019-12-31')
 
-#### results ####
+################################## results ########################################################################
 strategy_pnl = compute_pnl_attributions(gon_investors_list=[gon_lp_provider] + gon_investors_retail_strategy)
 
 ################ loyalty and capital checks ################
@@ -140,29 +134,29 @@ strategy_roi = pd.concat(res, axis=1).T \
     .assign(strategy_roi=lambda x: (1 + x['daily_rtn']).cumprod() - 1)['strategy_roi'].rename('Strategy HODL (%)') \
     .to_frame()#
 
-for pm_type in list(GON_PM_TYPE.to_dict().keys()) + ['ALL']:#[GON_PM_TYPE.SIMPLE, GON_PM_TYPE.SIMPLE_WITH_UNVEST_ON_APY, GON_PM_TYPE.CONSERVATIVE, GON_PM_TYPE.BUY_AND_HOLD]: #'ALL'
-    print (pm_type)
-    if pm_type == 'ALL':
-        plot_pnl_score_card(strategy_pnl=strategy_pnl,
-                            strategy_roi=strategy_roi.assign(avg_cash_out=None),
-                            gon_to_usdt_eod=gon_to_usdt_eod,
-                            title=f'Gon Participant Pnl Analytics Over time - {pm_type}')
-    else:
-        strategy_pnl_on_pm = [investor_pnl for investor_pnl in strategy_pnl if investor_pnl.iloc[0].loc['pm_type'] == pm_type]
-        if (pm_type == GON_PM_TYPE.CONSERVATIVE) or (pm_type == GON_PM_TYPE.BUY_AND_HOLD) or (pm_type == GON_PM_TYPE.LP_PROVIDER) :
-            avg_cash_out = None
-        else:
-            avg_cash_out = pd.DataFrame([{'investor_name': gon_investor.get_investor_name(),
-                                          'pct_yield_target': gon_investor._strat_buy_yield_pct} if gon_investor._pm_type == pm_type else {}
-                                     for gon_investor in gon_investors_retail_strategy]) \
-                            .dropna().set_index('investor_name').mean().values[0]
-        plot_pnl_score_card(strategy_pnl=strategy_pnl_on_pm, strategy_roi=strategy_roi.assign(avg_cash_out=avg_cash_out),
-                            gon_to_usdt_eod=gon_to_usdt_eod,
-                            title=f'Gon Participant Pnl Analytics Over time - {pm_type}')
+######################## use the below to generate analytics Score Card per PM group:#######################
+# for pm_type in list(GON_PM_TYPE.to_dict().keys()) + ['ALL']:#[GON_PM_TYPE.SIMPLE, GON_PM_TYPE.SIMPLE_WITH_UNVEST_ON_APY, GON_PM_TYPE.CONSERVATIVE, GON_PM_TYPE.BUY_AND_HOLD]: #'ALL'
+#     print (pm_type)
+#     if pm_type == 'ALL':
+#         plot_pnl_score_card(strategy_pnl=strategy_pnl,
+#                             strategy_roi=strategy_roi.assign(avg_cash_out=None),
+#                             gon_to_usdt_eod=gon_to_usdt_eod,
+#                             title=f'Gon Participant Pnl Analytics Over time - {pm_type}')
+#     else:
+#         strategy_pnl_on_pm = [investor_pnl for investor_pnl in strategy_pnl if investor_pnl.iloc[0].loc['pm_type'] == pm_type]
+#         if (pm_type == GON_PM_TYPE.CONSERVATIVE) or (pm_type == GON_PM_TYPE.BUY_AND_HOLD) or (pm_type == GON_PM_TYPE.LP_PROVIDER) :
+#             avg_cash_out = None
+#         else:
+#             avg_cash_out = pd.DataFrame([{'investor_name': gon_investor.get_investor_name(),
+#                                           'pct_yield_target': gon_investor._strat_buy_yield_pct} if gon_investor._pm_type == pm_type else {}
+#                                      for gon_investor in gon_investors_retail_strategy]) \
+#                             .dropna().set_index('investor_name').mean().values[0]
+#         plot_pnl_score_card(strategy_pnl=strategy_pnl_on_pm, strategy_roi=strategy_roi.assign(avg_cash_out=avg_cash_out),
+#                             gon_to_usdt_eod=gon_to_usdt_eod,
+#                             title=f'Gon Participant Pnl Analytics Over time - {pm_type}')
 
 plot_pnl_total_per_pm_group(strategy_pnl=strategy_pnl, gon_pm_types=GON_PM_TYPE.to_dict().keys())
 sharpe_stats = compute_stats_per_pm_group(strategy_pnl=strategy_pnl, gon_pm_types=GON_PM_TYPE.to_dict().keys())
-#sharpe_stats.to_csv('C:\\Users\\44787\\Documents\\binance\\docs\\GONLABS_ON_CHAIN\\tokenomics\\sharpe_stats.csv')
 
 ### get some gon dsitribution stats and plot on all actors:
 plot_gonomics_distribution_plan(gonomics_engine=gonomics_engine, GON_total_supply=GON_total_supply, gon_to_usdt_eod=gon_to_usdt_eod,
