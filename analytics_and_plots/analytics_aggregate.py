@@ -117,9 +117,26 @@ def principle_stats_on_pm_type(strategy_pnl_on_pm):
         .assign(holding_buk=lambda x: pd.cut(x['holding_count'], 20, labels=False))
 
     net_invested_corr = capital_commitment_data.astype(float).corr()['net_invested_strat']
+    net_invested_p_values = calculate_pvalues(capital_commitment_data.astype(float))['net_invested_strat']
     holding_count_corr = capital_commitment_data.astype(float).corr()['holding_count']
+    holding_count_p_values = calculate_pvalues(capital_commitment_data.astype(float))['holding_count']
     return pd.Series({'net_investment': net_invested_corr.loc['pnl_strat_total'],
-                      'holding_count' : holding_count_corr.loc['pnl_strat_total']})
+                      'holding_count' : holding_count_corr.loc['pnl_strat_total'],
+                      'net_investment_p_value': net_invested_p_values.loc['pnl_strat_total'],
+                      'holding_count_p_value': holding_count_p_values.loc['pnl_strat_total']})
+
+def calculate_pvalues(df):
+    from scipy.stats import pearsonr
+    df = df.dropna()._get_numeric_data()
+    pvals = pd.DataFrame(index=df.columns, columns=df.columns)
+    for r in df.columns:
+        for c in df.columns:
+            if r == c:
+                pvals[r, c] = np.nan
+            else:
+                _, p = pearsonr(df[r], df[c])
+                pvals.at[r, c] = p
+    return pvals
 
 def plot_principle_stats(strategy_pnl):
     principle_stats = []
@@ -135,7 +152,8 @@ def plot_principle_stats(strategy_pnl):
                 prince_stats = principle_stats_on_pm_type(strategy_pnl_on_pm=strategy_pnl_on_pm).rename(pm_type)
             principle_stats.append(prince_stats)
 
-    ax_x = pd.concat(principle_stats, axis=1).pipe(lambda df: df * 1e2) \
+    print('principle_stats: \n', pd.concat(principle_stats, axis=1))
+    ax_x = pd.concat(principle_stats, axis=1).iloc[0:2].pipe(lambda df: df * 1e2) \
             .drop(columns=['ALL']).assign(ALL = lambda x: x.mean(axis=1)) \
         .plot(kind='bar', figsize=(15, 10), title='Principle Stats across PM Types', alpha=.5,
               rot=0, fontsize=12, legend=True,
